@@ -317,11 +317,6 @@ fn extract_file(
     // Symbolic link: the target path is stored inline (fast symlink) or in
     // extents (page symlink). Extract it as an actual symlink so that
     // e.g. `bin -> usr/bin` is recreated as a link rather than a regular file.
-    if super::manifest::enabled() && matches!(file_mode & S_IFMT, 0x1000 | 0x2000 | 0x6000 | 0xc000)
-    {
-        println!("NODE\t{}", output_path.display());
-        return Ok(());
-    }
     if (file_mode & S_IFMT) == S_IFLNK {
         let target = if fork.total_blocks_count == 0 {
             let inline = fork.inline_data();
@@ -334,9 +329,6 @@ fn extract_file(
         };
         let target = target.trim_end_matches('\0').to_string();
         if super::manifest::enabled() {
-            if target.len() > 65536 {
-                bail!("Symlink exceeds manifest limit");
-            }
             super::manifest::symlink(output_path, target.as_bytes())?;
         }
         symlinks.push((output_path.to_path_buf(), target));

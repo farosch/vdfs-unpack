@@ -72,15 +72,9 @@ Arguments:
   - `xattrs.bin`: extended attributes, with raw values in the `OSEAX01` format.
 
 Manifest mode extracts the same files, directories and symbolic links as plain
-extraction, with the same names. It additionally records every entry in the
-manifest. Differences:
-
-- Symbolic link targets longer than 65536 bytes are rejected.
-- Device, FIFO and socket nodes are recorded as `NODE` rows only and nothing is
-  written to disk. Plain extraction writes an empty regular file in their place.
-- Limits: 64 MiB per table or catalog, and 200,000 catalog entries.
-
-Manifests contain raw extended-attribute values, so review them before sharing.
+extraction, with the same names and contents. It also records every catalog
+entry in the manifest files above. Manifests contain raw extended-attribute
+values, so review them before sharing.
 
 ## VDFS1002 images
 
@@ -102,8 +96,10 @@ restore into `-o`. The read-only modes are:
 cargo test --locked
 ```
 
-GitHub Actions runs this command on every pull request targeting `master`
-(see `.github/workflows/test.yml`).
+GitHub Actions (`.github/workflows/test.yml`) runs this command on pull requests
+to `main` and `develop`, and on pushes to `develop`. Pushes to `main` run the
+release workflow (`.github/workflows/release.yml`), which builds Linux, macOS
+and Windows archives.
 
 ## License
 

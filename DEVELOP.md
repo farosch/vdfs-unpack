@@ -81,7 +81,7 @@ Coding rules (module layout, error handling, tests, comments) are in
     image in memory, and the tests cover bad magic and checksums, loops,
     truncation, overflow, zlib/gzip/plain bodies, audit, selection, and tree
     restore.
-- `src/vdfs4/manifest.rs`: manifest files and `ENTRY`/`LINK`/`NODE` rows. Names
+- `src/vdfs4/manifest.rs`: manifest files and `ENTRY`/`LINK` rows. Names
   use the same checks as plain extraction.
 - `src/vdfs4/unpacker.rs`: path selection (`--include`), safe output names, and
   symlink creation. Manifest mode and plain mode share this code path.
