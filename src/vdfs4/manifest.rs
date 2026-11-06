@@ -12,15 +12,11 @@ use std::path::{Path, PathBuf};
 thread_local! {
     static ACTIVE: RefCell<Option<Manifest>> = const { RefCell::new(None) };
 }
-const MAX_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_ENTRIES: usize = 200_000;
-
 struct Manifest {
     root: PathBuf,
     table: BufWriter<File>,
     records: BufWriter<File>,
     record_bytes: u64,
-    table_bytes: u64,
     entries: usize,
     paths: HashSet<String>,
 }
@@ -65,7 +61,6 @@ pub fn start(directory: Option<&Path>, root: &Path) -> Result<()> {
                 table: BufWriter::new(table),
                 records: BufWriter::new(records),
                 record_bytes: 0,
-                table_bytes: 0,
                 entries: 0,
                 paths: HashSet::new(),
             };
@@ -78,13 +73,6 @@ pub fn start(directory: Option<&Path>, root: &Path) -> Result<()> {
 
 impl Manifest {
     fn row(&mut self, row: String) -> Result<()> {
-        self.table_bytes = self
-            .table_bytes
-            .checked_add(row.len() as u64 + 1)
-            .context("Manifest size overflow")?;
-        if self.table_bytes > MAX_BYTES {
-            bail!("Manifest table exceeds 64 MiB limit");
-        }
         writeln!(self.table, "{}", row)?;
         Ok(())
     }
@@ -115,9 +103,6 @@ impl Manifest {
         self.record_bytes = offset
             .checked_add(record.len() as u64)
             .context("Catalog size overflow")?;
-        if self.record_bytes > MAX_BYTES {
-            bail!("Manifest catalog exceeds 64 MiB limit");
-        }
         self.records.write_all(record)?;
         Ok(offset)
     }
@@ -140,9 +125,6 @@ pub fn record(record: &[u8], objects: &HashMap<u64, Vec<u8>>, path: &Path) -> Re
                 );
             }
             manifest.entries += 1;
-            if manifest.entries > MAX_ENTRIES {
-                bail!("Manifest exceeds 200000 catalog records");
-            }
             let resolved = match cattree_key_record_type(record) {
                 VDFS4_CATALOG_FILE_RECORD | VDFS4_CATALOG_FOLDER_RECORD => record,
                 VDFS4_CATALOG_ILINK_RECORD | VDFS4_CATALOG_HLINK_RECORD => objects
@@ -188,9 +170,6 @@ pub fn internal_record(record: &[u8], parent: &Path) -> Result<()> {
             manifest.relative(parent)?
         };
         manifest.entries += 1;
-        if manifest.entries > MAX_ENTRIES {
-            bail!("Manifest exceeds 200000 catalog records");
-        }
         let offset = manifest.append(record)?;
         manifest.row(format!(
             "INTERNAL\t{}\t{}\t{}",
@@ -206,7 +185,7 @@ pub fn symlink(path: &Path, target: &[u8]) -> Result<()> {
         let mut slot = active.borrow_mut();
         let manifest = slot.as_mut().context("Manifest not active")?;
         let relative = manifest.relative(path)?;
-        if target.len() > 65536 || !manifest.paths.contains(&relative) {
+        if !manifest.paths.contains(&relative) {
             bail!("Invalid manifest symlink target");
         }
         manifest.row(format!("LINK\t{}\t{}", relative, hex::encode(target)))
@@ -268,24 +247,14 @@ pub fn export_xattrs(reader: &ImageReader, directory: &Path) -> Result<()> {
     output.write_all(&0u64.to_le_bytes())?;
     let mut visited = HashSet::new();
     let mut count = 0u64;
-    let mut total = 16u64;
     loop {
-        if !visited.insert(node.node_id)
-            || visited.len() > MAX_ENTRIES
-            || node.node_type != VDFS4_NODE_LEAF
-        {
+        if !visited.insert(node.node_id) || node.node_type != VDFS4_NODE_LEAF {
             bail!("Invalid or cyclic xattr leaf chain");
         }
         for index in 0..node.recs_count as usize {
             let record = node.get_record(index);
             checked_xattr_record(record)?;
             count += 1;
-            total = total
-                .checked_add(12 + record.len() as u64)
-                .context("Xattr export size overflow")?;
-            if count > MAX_ENTRIES as u64 || total > MAX_BYTES - 16 {
-                bail!("Xattr export exceeds record/byte limit");
-            }
             output.write_all(&node.node_id.to_le_bytes())?;
             output.write_all(&(index as u32).to_le_bytes())?;
             output.write_all(&(record.len() as u32).to_le_bytes())?;

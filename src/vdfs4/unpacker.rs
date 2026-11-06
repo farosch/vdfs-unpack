@@ -329,9 +329,6 @@ fn extract_file(
         };
         let target = target.trim_end_matches('\0').to_string();
         if super::manifest::enabled() {
-            if target.len() > 65536 {
-                bail!("Symlink exceeds manifest limit");
-            }
             super::manifest::symlink(output_path, target.as_bytes())?;
         }
         symlinks.push((output_path.to_path_buf(), target));
