@@ -66,6 +66,9 @@ Coding rules (module layout, error handling, tests, comments) are in
   field at `key_length + 32`; folder modes after all files are written).
   Symlink records (type bits `0o120000`) are created as symlinks, with the body
   as the target; links are made after folders exist and are never chmod-ed.
+  Unix-only calls (`std::os::unix`: mode bits, symlinks, raw name bytes) are
+  `cfg(unix)`-gated. On Windows, modes are ignored and symlink records fail
+  with `Unsupported` (VDFS4 symlink creation is also Unix-only).
   It also provides the read-only modes `--list`
   (`--json`), `--audit`, and `--extract NAME -o FILE` (`select_file`, `audit`).
   `--include`, `--manifest-dir`, and `--aes-key` are rejected in VDFS1002 mode.

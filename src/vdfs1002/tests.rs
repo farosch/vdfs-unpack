@@ -13,6 +13,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
@@ -829,6 +830,7 @@ fn parses_mode_and_leaves_it_absent_when_record_is_too_short() {
     assert_eq!(records[1].mode, Some(0o100755));
 }
 
+#[cfg(unix)]
 #[test]
 fn restore_applies_file_and_directory_modes() {
     let catalog = vec![
@@ -850,6 +852,7 @@ fn restore_applies_file_and_directory_modes() {
     fs::remove_dir_all(&destination).unwrap();
 }
 
+#[cfg(unix)]
 #[test]
 fn restore_creates_symlinks_for_link_mode_bodies() {
     let link_fork = fork(7, 1, &[(3, 1)]);
