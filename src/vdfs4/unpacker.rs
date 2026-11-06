@@ -124,10 +124,23 @@ fn create_symlink(link_path: &Path, target: &str) -> Result<()> {
         fs::remove_file(link_path)
             .with_context(|| format!("remove conflicting file: {}", link_path.display()))?;
     }
-    std::os::unix::fs::symlink(target, link_path)
+    symlink_unix(target, link_path)
         .with_context(|| format!("Failed to create symlink: {}", link_path.display()))?;
     println!("SYMLINK\t{}\t{:?}", link_path.display(), target);
     Ok(())
+}
+
+#[cfg(unix)]
+fn symlink_unix(target: &str, link_path: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link_path)
+}
+
+#[cfg(not(unix))]
+fn symlink_unix(_target: &str, _link_path: &Path) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "symbolic links can only be restored on Unix",
+    ))
 }
 
 /// Read-only state shared by every directory visited during one unpack.

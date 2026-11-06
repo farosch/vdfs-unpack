@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, HashSet};
-use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -227,12 +229,23 @@ fn all_safe(parts: &[Vec<u8>]) -> bool {
     parts.iter().all(|part| safe(part))
 }
 
+#[cfg(unix)]
+fn bytes_to_os(bytes: &[u8]) -> OsString {
+    std::ffi::OsStr::from_bytes(bytes).to_os_string()
+}
+
+/// Non-Unix paths are not arbitrary bytes, so names are decoded lossily.
+#[cfg(not(unix))]
+fn bytes_to_os(bytes: &[u8]) -> OsString {
+    String::from_utf8_lossy(bytes).into_owned().into()
+}
+
 fn join(destination: &Path, parts: &[Vec<u8>], name: &[u8]) -> PathBuf {
     let mut path = destination.to_path_buf();
     for part in parts {
-        path.push(OsStr::from_bytes(part));
+        path.push(bytes_to_os(part));
     }
-    path.push(OsStr::from_bytes(name));
+    path.push(bytes_to_os(name));
     path
 }
 
@@ -248,15 +261,31 @@ fn write_new(target: &Path, contents: &[u8]) -> std::io::Result<()> {
 }
 
 /// Apply the stored permission bits exactly, without the process umask.
+#[cfg(unix)]
 fn set_mode(target: &Path, mode: u16) -> std::io::Result<()> {
     fs::set_permissions(target, fs::Permissions::from_mode(u32::from(mode & 0o7777)))
 }
 
+/// Permission bits have no direct equivalent on non-Unix filesystems, so they are not applied.
+#[cfg(not(unix))]
+fn set_mode(_target: &Path, _mode: u16) -> std::io::Result<()> {
+    Ok(())
+}
+
 /// A symbolic link's body holds its target path. Links are made only after every
 /// folder exists, so no later write can pass through one.
+#[cfg(unix)]
 fn create_symlink(target: &Path, link_target: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
     }
-    std::os::unix::fs::symlink(OsStr::from_bytes(link_target), target)
+    std::os::unix::fs::symlink(bytes_to_os(link_target), target)
+}
+
+#[cfg(not(unix))]
+fn create_symlink(_target: &Path, _link_target: &[u8]) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "symbolic links can only be restored on Unix",
+    ))
 }
