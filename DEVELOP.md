@@ -3,7 +3,7 @@
 ## Test and build
 
 ```sh
-cargo test --locked                  # all tests (75 unit + 1 ignored survey + 4 encrypted + 5 zlib + 1 hashed + 1 codec fixture)
+cargo test --locked                  # all tests (77 unit + 1 ignored survey + 4 encrypted + 5 zlib + 1 hashed + 1 codec fixture + 2 unrecognized-image)
 cargo build --release --locked       # ./target/release/vdfs-unpack
 cargo fmt --check                    # formatting (rustup component add rustfmt)
 cargo clippy --locked --all-targets  # lints (rustup component add clippy)
@@ -13,8 +13,18 @@ The compressed-descriptor survey is ignored by default because it needs a real i
 `VDFS1002_SURVEY_IMAGE=<image> cargo test --release --locked -- --ignored survey_compressed_descriptors --nocapture`.
 It lists the outcome of every file body and fails on any read, CRC, descriptor or decode error.
 
-Always pass `--locked`; `Cargo.lock` is pinned. CI runs `cargo test --locked`
-on pull requests to `master` (`.github/workflows/test.yml`).
+Always pass `--locked`; `Cargo.lock` is pinned. CI (`.github/workflows/test.yml`)
+runs `cargo test --locked` on pull requests into `main` and `develop` and on
+pushes to `develop`. A pull request into `main` must come from `develop`; the
+`verify-source` job fails otherwise.
+
+Release (`.github/workflows/release.yml`) runs on every push to `main`. It runs
+the tests, then builds `vdfs-unpack` for `x86_64-unknown-linux-gnu`,
+`x86_64-pc-windows-msvc`, `aarch64-apple-darwin` and `x86_64-apple-darwin`. It
+publishes a GitHub release tagged `v<version>` from the `version` field in
+`Cargo.toml`. If that tag already exists, the release is skipped, so bump the
+version before merging a release.
+
 
 Coding rules (module layout, error handling, tests, comments) are in
 [CONVENTIONS.md](CONVENTIONS.md).
@@ -22,6 +32,8 @@ Coding rules (module layout, error handling, tests, comments) are in
 ## Layout
 
 - `src/main.rs`: entry point. Dispatches to VDFS1002 or VDFS4 by image magic.
+  An image that matches neither is rejected unless `--force` is given, in which
+  case it is reported on stderr and sent to VDFS4.
 - `src/cli.rs`: the shared `Cli` argument struct.
 - `src/lzo1x.rs`: LZO1X codec, shared by VDFS4 and VDFS1002.
 - `src/hex.rs`: shared hex helpers (`encode`; `decode` is test-only).
@@ -46,7 +58,8 @@ Coding rules (module layout, error handling, tests, comments) are in
   `COMPRESSED_MAX_TABLE_GAP` (64 KiB) for padding before the descriptor.
   Written for this crate from the VDFS1002 format. `main.rs` dispatches to it
   when the image starts with `VDFS1002` at offset 1024; the VDFS4 path is
-  unchanged. `src/vdfs1002/cli.rs` holds its CLI handler (`run`). It restores a
+  taken otherwise. An image that matches neither is rejected unless `--force`
+  is given, which warns on stderr and continues with VDFS4. `src/vdfs1002/cli.rs` holds its CLI handler (`run`). It restores a
   tree (`restore`): the catalog walk (inode 3),
   forks, overflow extents (inode 5), Zip/Gzp descriptors, and hardlink and
   back-reference handling. Record modes are applied (`format::parse_mode`,
