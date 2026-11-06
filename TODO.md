@@ -270,12 +270,11 @@ Real-image checks are listed below.
     be guesswork and cannot be verified. Blocked until a real image shows a
     tiny or small extent.
 
-## Device, FIFO and socket nodes in manifest mode (open)
+## Device, FIFO and socket nodes (resolved)
 
-- Plain extraction writes an empty regular file for FIFO, character, block and
-  socket records (`S_IFMT` `0x1000`, `0x2000`, `0x6000`, `0xc000`). Manifest
-  mode records a `NODE` row and writes nothing, so the two trees differ.
-- Open question: should manifest mode also write placeholder files, or should
-  plain mode stop writing them? Deferred by the user. Decide before changing
-  either mode.
-- No fixture contains these node types, so the difference is untested.
+- Both modes now treat device, FIFO and socket records (`S_IFMT` `0x1000`,
+  `0x2000`, `0x6000`, `0xc000`) the same way: the fork's raw bytes are written
+  to a regular file. Manifest mode no longer prints `NODE` or skips the record.
+- No fixture contains these node types, so this path is not covered by a test.
+  Verify on a real image that contains one.
+
