@@ -18,9 +18,6 @@ use super::reader::ImageReader;
 type OverflowMap = HashMap<u64, Vec<(u64, Vdfs4Extent)>>;
 
 fn checked_name(record: &[u8]) -> Result<String> {
-    if super::manifest::enabled() {
-        return super::manifest::mapped_name(record);
-    }
     let name = std::str::from_utf8(cattree_key_name(record))?;
     if name.is_empty()
         || name == "."
@@ -326,24 +323,6 @@ fn extract_file(
         return Ok(());
     }
     if (file_mode & S_IFMT) == S_IFLNK {
-        if super::manifest::enabled() {
-            if file_size > 65536 {
-                bail!("Symlink exceeds manifest limit");
-            }
-            let target = if fork.total_blocks_count == 0 {
-                let length = usize::try_from(file_size)?;
-                if length > fork.inline_data().len() {
-                    bail!("Truncated inline symlink");
-                }
-                fork.inline_data()[..length].to_vec()
-            } else {
-                let extents = extents_resolve_fork(&fork, file_size, overflow, object_id)?;
-                extents_read_data(reader, &extents, 0, file_size)?
-            };
-            super::manifest::symlink(output_path, &target)?;
-            println!("SYMLINK\t{}\t\"target in manifest\"", output_path.display());
-            return Ok(());
-        }
         let target = if fork.total_blocks_count == 0 {
             let inline = fork.inline_data();
             let len = (file_size as usize).min(inline.len());
@@ -353,8 +332,14 @@ fn extract_file(
             let data = extents_read_data(reader, &extents, 0, file_size)?;
             String::from_utf8_lossy(&data).to_string()
         };
-        let target = target.trim_end_matches('\0');
-        symlinks.push((output_path.to_path_buf(), target.to_string()));
+        let target = target.trim_end_matches('\0').to_string();
+        if super::manifest::enabled() {
+            if target.len() > 65536 {
+                bail!("Symlink exceeds manifest limit");
+            }
+            super::manifest::symlink(output_path, target.as_bytes())?;
+        }
+        symlinks.push((output_path.to_path_buf(), target));
         return Ok(());
     }
 

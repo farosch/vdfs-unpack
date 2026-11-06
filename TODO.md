@@ -269,3 +269,13 @@ Real-image checks are listed below.
   - Conclusion: no reference implements a small-area format, so a reader would
     be guesswork and cannot be verified. Blocked until a real image shows a
     tiny or small extent.
+
+## Device, FIFO and socket nodes in manifest mode (open)
+
+- Plain extraction writes an empty regular file for FIFO, character, block and
+  socket records (`S_IFMT` `0x1000`, `0x2000`, `0x6000`, `0xc000`). Manifest
+  mode records a `NODE` row and writes nothing, so the two trees differ.
+- Open question: should manifest mode also write placeholder files, or should
+  plain mode stop writing them? Deferred by the user. Decide before changing
+  either mode.
+- No fixture contains these node types, so the difference is untested.

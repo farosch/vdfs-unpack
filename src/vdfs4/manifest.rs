@@ -3,7 +3,6 @@ use super::disk::*;
 use super::reader::ImageReader;
 use crate::hex;
 use anyhow::{Context, Result, bail};
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
@@ -26,29 +25,6 @@ struct Manifest {
     paths: HashSet<String>,
 }
 
-pub fn host_component(name: &[u8], object_id: u64) -> Result<String> {
-    if name.is_empty()
-        || name.len() > 255
-        || name == b"."
-        || name == b".."
-        || name.contains(&b'/')
-        || name.contains(&0)
-    {
-        bail!("Invalid original catalog name");
-    }
-    if name
-        .iter()
-        .all(|value| value.is_ascii_alphanumeric() || b"._-".contains(value))
-    {
-        return Ok(std::str::from_utf8(name)?.to_owned());
-    }
-    Ok(format!(
-        "~vdfs-unpack-{:016x}-{}",
-        object_id,
-        hex::encode(&Sha256::digest(name))
-    ))
-}
-
 fn checked_record(record: &[u8]) -> Result<()> {
     if record.len() < CATTREE_KEY_NAME_OFF {
         bail!("Truncated manifest catalog key");
@@ -66,11 +42,6 @@ fn checked_record(record: &[u8]) -> Result<()> {
 
 pub fn enabled() -> bool {
     ACTIVE.with(|active| active.borrow().is_some())
-}
-
-pub fn mapped_name(record: &[u8]) -> Result<String> {
-    checked_record(record)?;
-    host_component(cattree_key_name(record), cattree_key_object_id(record))
 }
 
 pub fn start(directory: Option<&Path>, root: &Path) -> Result<()> {
@@ -129,9 +100,8 @@ impl Manifest {
                 part.is_empty()
                     || part == "."
                     || part == ".."
-                    || !part
-                        .bytes()
-                        .all(|value| value.is_ascii_alphanumeric() || b"._-~".contains(&value))
+                    || part.contains('\\')
+                    || part.chars().any(char::is_control)
             })
         {
             bail!("Unsafe manifest host path");
@@ -337,23 +307,6 @@ pub fn export_xattrs(reader: &ImageReader, directory: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn reserved_aliases_preserve_valid_byte_names_without_host_controls() {
-        assert_eq!(host_component(b"SWUCoreTV", 1).unwrap(), "SWUCoreTV");
-        let alias = host_component(b"\r", 53110).unwrap();
-        assert!(alias.starts_with("~vdfs-unpack-000000000000cf76-"));
-        assert!(alias.len() < 255);
-        assert_ne!(host_component(alias.as_bytes(), 53110).unwrap(), alias);
-        assert_ne!(
-            host_component(b"\r", 1).unwrap(),
-            host_component(b"\r", 2).unwrap()
-        );
-        for name in [b"".as_slice(), b".", b"..", b"a/b", b"a\0b"] {
-            assert!(host_component(name, 1).is_err());
-        }
-        assert!(host_component(b"\xff", 1).is_ok());
-        assert!(host_component(&[255; 255], 1).unwrap().len() < 255);
-    }
 
     #[test]
     fn xattr_length_prefix_and_key_bounds_are_checked() {

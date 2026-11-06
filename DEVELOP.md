@@ -3,7 +3,7 @@
 ## Test and build
 
 ```sh
-cargo test --locked                  # all tests (77 unit + 1 ignored survey + 4 encrypted + 5 zlib + 1 hashed + 1 codec fixture + 2 unrecognized-image)
+cargo test --locked                  # all tests (76 unit + 1 ignored survey + 4 encrypted + 5 zlib + 1 hashed + 1 codec fixture + 2 unrecognized-image + 1 manifest-mode)
 cargo build --release --locked       # ./target/release/vdfs-unpack
 cargo fmt --check                    # formatting (rustup component add rustfmt)
 cargo clippy --locked --all-targets  # lints (rustup component add clippy)
@@ -81,9 +81,12 @@ Coding rules (module layout, error handling, tests, comments) are in
     image in memory, and the tests cover bad magic and checksums, loops,
     truncation, overflow, zlib/gzip/plain bodies, audit, selection, and tree
     restore.
-- `src/vdfs4/manifest.rs`: reserved aliases for non-portable names,
-  `~vdfs-unpack-OBJECTID-SHA256`.
-- `src/vdfs4/unpacker.rs`: path selection (`--include`) and safe output names.
+- `src/vdfs4/manifest.rs`: manifest files and `ENTRY`/`LINK`/`NODE` rows. Names
+  use the same checks as plain extraction.
+- `src/vdfs4/unpacker.rs`: path selection (`--include`), safe output names, and
+  symlink creation. Manifest mode and plain mode share this code path.
+- `tests/manifest_mode.rs`: checks that manifest mode produces the same tree as
+  plain mode on `small-zlib.vdfs`, including the symlink and its `LINK` row.
 - Other `src/vdfs4/` files: `disk` (on-disk structs), `superblock`, `btree`,
   `cattree`, `extents`, `snapshot`, `reader` (image access).
 
