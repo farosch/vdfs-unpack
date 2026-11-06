@@ -2,12 +2,25 @@ name: Test
 
 on:
   pull_request:
-    branches: [master]
+    branches: [main, develop]
+  push:
+    branches: [develop]
 
 permissions:
   contents: read
 
 jobs:
+  verify-source:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require develop as the source branch
+        run: |
+          if [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "::error::Pull requests into main must come from develop (got '${{ github.head_ref }}')."
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-latest
     steps:

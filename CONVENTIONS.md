@@ -6,7 +6,9 @@ reviewing a change. `DEVELOP.md` covers the commands and test fixtures.
 ## Project layout
 
 - `src/main.rs`: entry point only. It reads the image and dispatches on
-  `vdfs1002::is_vdfs1002`.
+  `vdfs1002::is_vdfs1002`, then checks `vdfs4::is_vdfs4` and warns on stderr if
+  neither format matches. Without `--force` that is an error; with `--force` it
+  is a warning before falling back to VDFS4.
 - `src/cli.rs`: the shared `Cli` argument struct.
 - `src/lzo1x.rs`: the LZO1X codec, shared by both formats. Format-neutral code
   lives at the top level.

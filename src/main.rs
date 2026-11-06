@@ -20,5 +20,17 @@ fn main() -> Result<()> {
     if vdfs1002::is_vdfs1002(&image) {
         return vdfs1002::cli::run(&image, &args);
     }
+    if !vdfs4::is_vdfs4(&image) {
+        if !args.force {
+            bail!(
+                "{} is not a recognized VDFS1002 or VDFS4 image (use --force to try VDFS4 anyway)",
+                args.input.display()
+            );
+        }
+        eprintln!(
+            "warning: {} is not a recognized VDFS1002 or VDFS4 image; trying VDFS4 because --force was given",
+            args.input.display()
+        );
+    }
     vdfs4::run(&image, &args)
 }

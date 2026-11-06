@@ -63,6 +63,8 @@ Arguments:
   (`ENCRYPTED` flag, layout 2007). Required when the image has encrypted chunks;
   the key is not validated, so a wrong key fails with a decompression or digest
   error.
+- `--force` — extract with the VDFS4 path even when the image is not a
+  recognized VDFS1002 or VDFS4 image. Without it, such an image is rejected.
 - `--manifest-dir <DIR>` — write these files into `DIR` (must not already
   contain them):
   - `catalog.bin`: raw catalog records.

@@ -13,6 +13,16 @@ use crate::cli::Cli;
 use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
 
+/// Checks the superblock signature and layout version that `superblock::read_superblock` requires.
+pub(crate) fn is_vdfs4(image: &[u8]) -> bool {
+    let sb = disk::SECTOR_SIZE * 2;
+    let signature = image.get(sb..sb + 4);
+    let layout = image.get(sb + 4..sb + 8);
+    signature == Some(disk::VDFS4_SB_SIGNATURE.as_slice())
+        && (layout == Some(disk::VDFS4_LAYOUT_VERSION_2006.as_slice())
+            || layout == Some(disk::VDFS4_LAYOUT_VERSION_2007.as_slice()))
+}
+
 pub(crate) fn run(image: &[u8], args: &Cli) -> Result<()> {
     if args.audit || args.list || args.extract.is_some() || args.parent.is_some() {
         bail!("--audit, --list, --extract and --parent are only supported for VDFS1002 images");
@@ -49,4 +59,30 @@ pub(crate) fn run(image: &[u8], args: &Cli) -> Result<()> {
 
     println!("Done!");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_vdfs4;
+
+    fn image_with(signature: &[u8], layout: &[u8]) -> Vec<u8> {
+        let mut image = vec![0u8; 2048];
+        image[1024..1028].copy_from_slice(signature);
+        image[1028..1032].copy_from_slice(layout);
+        image
+    }
+
+    #[test]
+    fn detects_vdfs4_layouts() {
+        assert!(is_vdfs4(&image_with(b"VDFS", b"2007")));
+        assert!(is_vdfs4(&image_with(b"VDFS", b"2006")));
+    }
+
+    #[test]
+    fn rejects_other_images() {
+        assert!(!is_vdfs4(&image_with(b"VDFS", b"1002")));
+        assert!(!is_vdfs4(&image_with(b"XXXX", b"2007")));
+        assert!(!is_vdfs4(&[0u8; 2048]));
+        assert!(!is_vdfs4(&[0u8; 100]));
+    }
 }
